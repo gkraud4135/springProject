@@ -60,17 +60,32 @@ jobs:
     runs-on: self-hosted
 
     steps:
-    - name: docker pull
-      run : sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/springdeploy
-
-    - name: docker stop container
+    # =========================
+    # 기존 컨테이너 stop + remove 추가
+    - name: Stop and remove old container
       run: |
-        if [ $(sudo docker ps -a -q -f name=spring-cicd-test) ]; then
-          sudo docker stop springdeploy
-        fi
+        sudo docker stop springdeploy || true   # 기존 컨테이너 실행 중이면 중지
+        sudo docker rm springdeploy || true     # 기존 컨테이너 삭제
+    # =========================
 
+    # =========================
+    # 기존 이미지 삭제 (옵션, 충돌 방지)
+    - name: Remove old image
+      run: sudo docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/springdeploy:latest || true
+    # =========================
+
+    # pull 새 이미지
+    - name: docker pull
+      run: sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/springdeploy:latest
+
+    # run 새 컨테이너
     - name: docker run new container
-      run: sudo docker run --rm -it -d -p 80:8080 --name springdeploy ${{ secrets.DOCKERHUB_USERNAME }}/springdeploy
+      run: |
+        sudo docker run -d -p 80:8080 \
+          --name springdeploy \
+          ${{ secrets.DOCKERHUB_USERNAME }}/springdeploy:latest
+        # --rm, -it 제거: 서버 배포 컨테이너는 백그라운드 실행만 필요
 
+    # 기존 방식 유지: 불필요한 캐시 정리
     - name: delete old docker image
       run: sudo docker system prune -f
